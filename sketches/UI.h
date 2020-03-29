@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#define ESP32
 #include <TFT_eSPI.h>
 // UI element types
 #define UI_TEXT		1
