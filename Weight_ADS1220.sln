@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29519.161
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{803FD0C6-D64E-4E16-9DC3-1DAEC859A3D2}") = "Weight_ADS1220", "Weight_ADS1220.vgdbproj", "{9091A389-49A1-41B4-8C7C-42791F66126D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|ESP32_Dev_Module = Debug|ESP32_Dev_Module
+		Release|ESP32_Dev_Module = Release|ESP32_Dev_Module
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{9091A389-49A1-41B4-8C7C-42791F66126D}.Debug|ESP32_Dev_Module.ActiveCfg = Debug|ESP32_Dev_Module
+		{9091A389-49A1-41B4-8C7C-42791F66126D}.Debug|ESP32_Dev_Module.Build.0 = Debug|ESP32_Dev_Module
+		{9091A389-49A1-41B4-8C7C-42791F66126D}.Release|ESP32_Dev_Module.ActiveCfg = Release|ESP32_Dev_Module
+		{9091A389-49A1-41B4-8C7C-42791F66126D}.Release|ESP32_Dev_Module.Build.0 = Release|ESP32_Dev_Module
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {E3DCCB75-FAF5-4CA9-829B-F56A0E1FC57C}
+	EndGlobalSection
+EndGlobal
