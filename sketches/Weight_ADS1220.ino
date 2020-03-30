@@ -5,6 +5,8 @@
 #include <TFT_eSPI.h>
 #include <HardwareSerial.h>
 #include <Button2.h>
+#include "time.h"
+
 #define	LED_BUILTIN	4
 #define PGA			1
 #define VREF         2.048            // Internal reference of 2.048V
@@ -21,6 +23,8 @@ TFT_eSPI tft	= TFT_eSPI (TFT_WIDTH, TFT_HEIGHT);
 
 Button2		btnOK (BUTTON_1);
 bool		fadeComplete = false;
+
+time_t		startTime;
 
 void fadePWM (void *param) {
 	bool dir = (bool*)param;
@@ -46,6 +50,24 @@ void fadePWM (void *param) {
 	vTaskDelete (NULL);
 }
 
+void shutDown (void *param) {
+	static bool dir2 = false;
+	fadeComplete = false;
+	xTaskCreate (fadePWM, "fadeOutPWM", 1000, (void*)false, 2, NULL);
+	ads1220.SPI_Command (2); 	// Power Down
+		
+	vTaskDelay (20);
+	esp_sleep_enable_ext1_wakeup (GPIO_SEL_35, ESP_EXT1_WAKEUP_ALL_LOW);
+	while (fadeComplete == false) {
+		vTaskDelay (10);
+	}
+		
+	tft.writecommand (TFT_DISPOFF);
+	tft.writecommand (TFT_SLPIN);
+	esp_deep_sleep_start ();
+	vTaskDelete (NULL);
+}
+
 void setup()
 {
 	pinMode(LED_BUILTIN, OUTPUT);
@@ -66,7 +88,7 @@ void setup()
 	//ads1220.set_conv_mode_single_shot ();
 	ads1220.set_conv_mode_continuous ();
 	ads1220.writeRegister (2, 7 + 8 + 32 + 128);	// IDAC current at 1500uA, Low-side power switch on, 50Hz filter on, VREF using AIN0/AIN3
-	ads1220.writeRegister (3, 32 + 4);	// Connect IDAC1+IDAC2 to AIN0
+	//ads1220.writeRegister (3, 32 + 4);	// Connect IDAC1+IDAC2 to AIN0
 	ads1220.select_mux_channels (MUX_AIN1_AIN2);
 
 	Serial.println ("Config_Reg : ");
@@ -75,6 +97,7 @@ void setup()
 	Serial.println (ads1220.readRegister (CONFIG_REG2_ADDRESS), HEX);
 	Serial.println (ads1220.readRegister (CONFIG_REG3_ADDRESS), HEX);
 	Serial.println (" ");
+	
 /*
 	digitalWrite (BUZZER, 1);
 	for (int i = 0; i < 3000; i++) {
@@ -98,24 +121,10 @@ void setup()
 	digitalWrite (TFT_BL, TFT_BACKLIGHT_ON);
 	*/
 	btnOK.setReleasedHandler ([](Button2 & b) {
-		static bool dir2 = false;
-		fadeComplete = false;
-		xTaskCreate (fadePWM, "fadeOutPWM", 1000, (void*)false, 2, NULL);
-		ads1220.SPI_Command (2);	// Power Down
-		
-		vTaskDelay (20);
-		esp_sleep_enable_ext1_wakeup (GPIO_SEL_35, ESP_EXT1_WAKEUP_ALL_LOW);
-		while (fadeComplete == false) {
-			vTaskDelay (10);
-		}
-		
-		tft.writecommand (TFT_DISPOFF);
-		tft.writecommand (TFT_SLPIN);
-		esp_deep_sleep_start ();
+		xTaskCreate (shutDown, "shutDown", 3000, NULL, 1, NULL);
 	});
 	
-	
-	ads1220.Start_Conv ();
+	time(&startTime);
 }
 
 #define ZEROVAL		150490
@@ -139,16 +148,23 @@ bool		valid = false;
 
 void loop()
 {
-	int		adc_data;
+	int		adc_data, adc_max, adc_min;
 	char	text[16];
-
+	time_t	now;
+	
 	//ads1220.Start_Conv ();
 	buffer[bufferpos] = ads1220.Read_WaitForData ();
 	adc_data = 0;
+	adc_max = -8388608;
+	adc_min = 8388607;
 	for (uint8_t count = 0; count < BUFFER_SIZE; count++) {
 		adc_data += buffer[count];
+		adc_max = max (adc_max, buffer[count]);
+		adc_min = min (adc_min, buffer[count]);
 	}
-	adc_data /= BUFFER_SIZE;
+	adc_data -= adc_max + adc_min;
+	adc_data /= BUFFER_SIZE - 2;
+	
 	if ((bufferpos + 1) == BUFFER_SIZE && valid == false) {
 		// weegschaal op nul stellen bij start
 		zerooffset = ZEROVAL - adc_data;
@@ -172,9 +188,11 @@ void loop()
 		sprintf (text, "  %8i", adc_data);
 		tft.drawString (text, 100, 100, 2);
 		if (bufferpos == 0) {
-			// Temperatuur uitlezen
 			ads1220.set_conv_mode_single_shot ();
-
+			ads1220.set_data_rate (DR_90SPS);
+			ads1220.set_operating_mode (OM_TURBO);
+			
+			// Temperatuur uitlezen
 			ads1220.set_temp_sens_mode (true);
 			ads1220.Start_Conv ();
 			adc_data = ads1220.Read_WaitForData ();
@@ -200,7 +218,7 @@ void loop()
 			sprintf (text, " %2.3fV", convertToMilliV (adc_data) / 250.0f);
 			tft.setTextDatum (TR_DATUM);
 			tft.setTextColor (TFT_GREEN, TFT_WHITE);
-			tft.drawString (text, 120, 114, 2);
+			tft.drawString (text, 112, 114, 2);
 
 			ads1220.select_mux_channels (MUX_AVDD_AVSS_DIV_4);
 			
@@ -211,18 +229,30 @@ void loop()
 			sprintf (text, " %2.3fV", convertToMilliV (adc_data) / 250.0f);
 			tft.setTextDatum (TR_DATUM);
 			tft.setTextColor (TFT_GREEN, TFT_WHITE);
-			tft.drawString (text, 60, 114, 2);
+			tft.drawString (text, 52, 114, 2);
 
-
+			ads1220.set_data_rate (DR_20SPS);
+			ads1220.set_operating_mode (OM_NORMAL);
 			ads1220.select_mux_channels (MUX_AIN1_AIN2);
 			ads1220.set_conv_mode_continuous ();
 			ads1220.Start_Conv ();
-			//ads1220.PGA_ON ();
+
+			tm	timeInfo;
+			getLocalTime (&timeInfo, 0);
+			strftime (text, sizeof (text), "%H:%M:%S", &timeInfo);
+			tft.setTextDatum (TL_DATUM);
+			tft.setTextColor (TFT_BLACK, TFT_WHITE);
+			tft.drawString (text, 0, 0, 2);
 		}
 	}
 	bufferpos = (bufferpos + 1) % BUFFER_SIZE;
 	if (bufferpos == 0) {
 		valid = true;
+	}
+	
+	time (&now);
+	if ((now - startTime) > 300) {
+		xTaskCreate (shutDown, "shutDown", 3000, NULL, 1, NULL);		
 	}
 	btnOK.loop ();
 	//delay (100);	
