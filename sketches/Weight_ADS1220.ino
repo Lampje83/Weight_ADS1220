@@ -20,12 +20,44 @@ Protocentral_ADS1220	ads1220;
 TFT_eSPI tft	= TFT_eSPI (TFT_WIDTH, TFT_HEIGHT);
 
 Button2		btnOK (BUTTON_1);
+bool		fadeComplete = false;
+
+void fadePWM (void *param) {
+	bool dir = (bool*)param;
+
+	fadeComplete = false;
+
+	float brightness = ledcRead (0) + 1;
+	Serial.print ("Brightness start: ");
+	Serial.println (brightness);
+	Serial.print ("Richting: ");
+	Serial.print (dir);
+	Serial.print (" ");
+	Serial.println (dir ? 1024 : 0);
+	while (dir ? (brightness < 1024) : (brightness > 1)) {
+		brightness *= dir ? 1.2 : (1.0f / 1.2f);
+		Serial.print ("Brightness naar ");
+		Serial.println (brightness);
+		ledcWrite (0, max (min (1023.0f, brightness), 0.0f));
+		vTaskDelay (10);
+	}
+	
+	fadeComplete = true;	
+	vTaskDelete (NULL);
+}
 
 void setup()
 {
 	pinMode(LED_BUILTIN, OUTPUT);
-	
+
+	digitalWrite (TFT_BL, 0);
+	pinMode (TFT_BL, OUTPUT);
+
 	Serial.begin (115200);
+
+	ledcSetup (0, 4000, 10);
+	ledcWrite (0, 0);
+	ledcAttachPin (TFT_BL, 0);	
 
 	ads1220.begin (15, 22);
 	ads1220.set_data_rate (DR_20SPS);
@@ -57,21 +89,31 @@ void setup()
 	tft.setCursor (0, 0);
 	tft.fillScreen (TFT_BLACK);
 	tft.setTextFont (1);
-	//tft.setTextSize (4);
 	tft.fillScreen (TFT_WHITE);
-	
+
+	xTaskCreate (fadePWM, "fadeInPWM", 1000, (void*)true, 2, NULL);
+
+	/*
 	pinMode (TFT_BL, OUTPUT);
 	digitalWrite (TFT_BL, TFT_BACKLIGHT_ON);
-
+	*/
 	btnOK.setReleasedHandler ([](Button2 & b) {
-		tft.writecommand (TFT_DISPOFF);
-		tft.writecommand (TFT_SLPIN);
+		static bool dir2 = false;
+		fadeComplete = false;
+		xTaskCreate (fadePWM, "fadeOutPWM", 1000, (void*)false, 2, NULL);
 		ads1220.SPI_Command (2);	// Power Down
 		
 		vTaskDelay (20);
 		esp_sleep_enable_ext1_wakeup (GPIO_SEL_35, ESP_EXT1_WAKEUP_ALL_LOW);
+		while (fadeComplete == false) {
+			vTaskDelay (10);
+		}
+		
+		tft.writecommand (TFT_DISPOFF);
+		tft.writecommand (TFT_SLPIN);
 		esp_deep_sleep_start ();
 	});
+	
 	
 	ads1220.Start_Conv ();
 }
