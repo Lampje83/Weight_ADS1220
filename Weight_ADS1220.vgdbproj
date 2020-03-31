@@ -18,7 +18,9 @@
           <string>Weight_ADS1220.ino</string>
         </Files>
       </RootSketchFolder>
-      <OtherFiles />
+      <OtherFiles>
+        <string>sketches\ADC.h</string>
+      </OtherFiles>
     </ProjectModeSettings>
   </Project>
   <Build xsi:type="com.visualgdb.build.external.arduino">
