@@ -18,24 +18,38 @@ Button2		btnOK (BUTTON_1);
 Button2		btnSelect (BUTTON_2);
 
 bool		fadeComplete = false;
+uint16_t	targetBrightness;
 
 time_t		startTime;
 
 void fadePWM (void *param) {
-	bool dir = (bool*)param;
+	uint16_t target = *((uint16_t*)param);
 
-	fadeComplete = false;
+	Serial.print ("Target: ");
+	Serial.println (target);
 
 	float brightness = ledcRead (0) + 1;
+	//bool dir = (bool*)param;
+	bool dir = (target - brightness) > 0.0f;
+	
+	if (target < 0) target = 0;
+	if (target > 1023) target = 1023;
+	
+	fadeComplete = false;
+
 	Serial.print ("Brightness start: ");
 	Serial.println (brightness);
 	Serial.print ("Richting: ");
-	Serial.print (dir);
-	Serial.print (" ");
-	Serial.println (dir ? 1024 : 0);
-	while (dir ? (brightness < 1024) : (brightness > 1)) {
+	Serial.println (dir);
+	//Serial.println (dir ? 1024 : 0);
+	while (dir ? (brightness < target) : (brightness > (target + 1))) {
 		brightness *= dir ? 1.2 : (1.0f / 1.2f);
 		Serial.print ("Brightness naar ");
+		if (dir == 0) {
+			if (brightness < target) brightness = target;
+		} else {
+			if (brightness > target) brightness = target;
+		}
 		Serial.println (brightness);
 		ledcWrite (0, max (min (1023.0f, brightness), 0.0f));
 		delay (10);
@@ -48,14 +62,15 @@ void fadePWM (void *param) {
 void shutDown (void *param) {
 	static bool dir2 = false;
 	fadeComplete = false;
-	xTaskCreate (fadePWM, "fadeOutPWM", 1000, (void*)false, 2, NULL);
+	targetBrightness = 0;
+	xTaskCreate (fadePWM, "fadeOutPWM", 1000, (void*)&targetBrightness, 2, NULL);
 	
 	ADC.powerDown ();
 		
 	delay (20);
 	esp_sleep_enable_ext1_wakeup (GPIO_SEL_35, ESP_EXT1_WAKEUP_ALL_LOW);
 	while (fadeComplete == false) {
-		vTaskDelay (10);
+		delay (10);
 	}
 		
 	tft.writecommand (TFT_DISPOFF);
@@ -93,7 +108,8 @@ void setup()
 	tft.setTextFont (1);
 	tft.fillScreen (TFT_WHITE);
 
-	xTaskCreate (fadePWM, "fadeInPWM", 1000, (void*)true, 2, NULL);
+	targetBrightness = 511;
+	xTaskCreate (fadePWM, "fadeInPWM", 1000, (void*)&targetBrightness, 2, NULL);
 
 	btnOK.setLongClickHandler ([](Button2 & b) {
 		xTaskCreate (shutDown, "shutDown", 3000, NULL, 1, NULL);
