@@ -1,5 +1,4 @@
 #define BOARD_ADS1220
-//#include <Protocentral_ADS1220.h>
 #include <SPI.h>
 #include <SPIFFS.h>
 #include <TFT_eSPI.h>
@@ -13,10 +12,6 @@
 #define BUTTON_1	35
 #define BUTTON_2	0
 
-#define CS_PIN		15
-#define DRDY_PIN	22
-
-//SPIClass adsSPI = SPIClass (HSPI);
 TFT_eSPI tft	= TFT_eSPI (TFT_WIDTH, TFT_HEIGHT);
 
 Button2		btnOK (BUTTON_1);
@@ -76,7 +71,7 @@ void setup()
 
 	Serial.begin (115200);
 
-	ADC.begin (CS_PIN, DRDY_PIN);
+	ADC.begin ();//CS_PIN, DRDY_PIN);
 
 	ledcSetup (0, 4000, 10);
 	ledcWrite (0, 0);
@@ -98,10 +93,6 @@ void setup()
 
 	xTaskCreate (fadePWM, "fadeInPWM", 1000, (void*)true, 2, NULL);
 
-	/*
-	pinMode (TFT_BL, OUTPUT);
-	digitalWrite (TFT_BL, TFT_BACKLIGHT_ON);
-	*/
 	btnOK.setReleasedHandler ([](Button2 & b) {
 		xTaskCreate (shutDown, "shutDown", 3000, NULL, 1, NULL);
 	});
@@ -109,43 +100,19 @@ void setup()
 	time(&startTime);
 }
 
-//extern int32_t	zerooffset;
-
-/*
-#define BUFFER_SIZE		8
-int32_t		buffer[BUFFER_SIZE];
-byte		bufferpos = 0;
-bool		valid = false;
-*/
 bool		firstRun = true;
 uint8_t		cycleCount = 0;
 bool		oldDRDY;
 
 void loop()
 {
-	//int32_t		adc_data, adc_max, adc_min;
 	char	text[16];
 	time_t	now;
 	int32_t	value;
-	//ads1220.Start_Conv ();
-/*
-	buffer[bufferpos] = ads1220.Read_WaitForData ();
-	adc_data = 0;
-	adc_max = -8388608;
-	adc_min = 8388607;
-	for (uint8_t count = 0; count < BUFFER_SIZE; count++) {
-		adc_data += buffer[count];
-		adc_max = max (adc_max, buffer[count]);
-		adc_min = min (adc_min, buffer[count]);
-	}
-	adc_data -= adc_max + adc_min;
-	adc_data /= BUFFER_SIZE - 2;
-*/
+
 	ADC.writeBuffer (ads1220.Read_WaitForData ());
 	
 	if (ADC.avgIsValid && firstRun) {
-		// weegschaal op nul stellen bij start
-		// zerooffset = ZEROVAL - adc_data;
 		firstRun = false;
 		ADC.tare ();
 	}
@@ -168,23 +135,16 @@ void loop()
 		sprintf (text, "  %8i", ADC.getAverage());
 		tft.drawString (text, 100, 100, 2);
 		if (cycleCount == 0) {			
-			//ads1220.set_conv_mode_single_shot ();
 			ads1220.set_data_rate (DR_90SPS);
 			ads1220.set_operating_mode (OM_TURBO);
 			
 			// Temperatuur uitlezen
-			//ads1220.set_temp_sens_mode (true);
-			//ads1220.Start_Conv ();
 			ADC.startConversion (TEMPERATURE_CHANNEL, false);
-			//adc_data = ads1220.Read_WaitForData ();
-			//ads1220.set_temp_sens_mode (false);
 			ADC.waitForDRDY ();
 			Serial.print ("\tTemperatuur: ");
-			//Serial.print ((adc_data >> 10) * 0.03125);
 			Serial.print (ADC.getTemperature ());
 			tft.setTextColor (TFT_BLUE, TFT_WHITE);
 			tft.setTextDatum (TR_DATUM);
-			//sprintf (text, "   %2.1f", ((adc_data >> 10) * 0.03125));
 			sprintf (text, "   %2.1f", ADC.getTemperature());
 			tft.drawString (text, 180, 106, 4);
 			tft.setTextDatum (TL_DATUM);
@@ -192,23 +152,14 @@ void loop()
 			tft.drawString ("C", 186, 106, 2);
 			
 			// Referentiespanning uitlezen			
-			//ads1220.select_mux_channels (MUX_VREFP_VREFN_DIV_4);
-			
-			//ads1220.Start_Conv ();
-			//adc_data = ads1220.Read_WaitForData ();
 			value = ADC.getAdcValue (MUX_VREFP_VREFN_DIV_4);
 			Serial.print ("\r\nReferentie: ");
-			//Serial.print (adc_data);
 			Serial.print (value);
 			sprintf (text, " %2.3fV", ADC.convertToMilliV (value) / 250.0f);
 			tft.setTextDatum (TR_DATUM);
 			tft.setTextColor (TFT_GREEN, TFT_WHITE);
 			tft.drawString (text, 112, 114, 2);
 
-			//ads1220.select_mux_channels (MUX_AVDD_AVSS_DIV_4);
-			
-			//ads1220.Start_Conv ();
-			//adc_data = ads1220.Read_WaitForData ();
 			value = ADC.getAdcValue (MUX_AVDD_AVSS_DIV_4);
 			Serial.print ("\r\nReferentie: ");
 			Serial.print (value);
@@ -219,9 +170,6 @@ void loop()
 
 			ads1220.set_data_rate (DR_20SPS);
 			ads1220.set_operating_mode (OM_NORMAL);
-			//ads1220.select_mux_channels (MUX_AIN1_AIN2);
-			//ads1220.set_conv_mode_continuous ();
-			//ads1220.Start_Conv ();
 			ADC.startConversion (MUX_AIN1_AIN2, true);
 			
 			tm	timeInfo;
@@ -235,7 +183,7 @@ void loop()
 	cycleCount = (cycleCount + 1) & 15;
 	if (digitalRead (DRDY_PIN) != oldDRDY) {
 		oldDRDY = !oldDRDY;
-		if (oldDRDY == true) {
+		if (oldDRDY == false) {
 			ADC.handleDRDY ();
 		}
 	}

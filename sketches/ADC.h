@@ -25,6 +25,9 @@
 #define ADS1220_POWERDOWN		2
 #define TEMPERATURE_CHANNEL		0xF0	// actually reserved channel of mux,
 										// but we use this index to indicate temperature mode
+#define CS_PIN		15
+#define DRDY_PIN	22
+
 /* Functions */
 
 class ADCClass {
@@ -49,7 +52,7 @@ public:
 	bool	avgIsValid = false; 	// buffer completely filled
 
 	ADCClass ();
-	void	begin (uint8_t cs_pin, uint8_t drdy_pin);
+	void	begin (uint8_t cs_pin = CS_PIN, uint8_t drdy_pin = DRDY_PIN);
 	
 	void	loop ();
 
