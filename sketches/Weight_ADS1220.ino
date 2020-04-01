@@ -15,6 +15,8 @@
 TFT_eSPI tft	= TFT_eSPI (TFT_WIDTH, TFT_HEIGHT);
 
 Button2		btnOK (BUTTON_1);
+Button2		btnSelect (BUTTON_2);
+
 bool		fadeComplete = false;
 
 time_t		startTime;
@@ -79,6 +81,7 @@ void setup()
 
 	//ADC.begin ();//CS_PIN, DRDY_PIN);
 	xTaskCreate (initADC, "initADC", 3000, NULL, 5, NULL);
+
 	ledcSetup (0, 4000, 10);
 	ledcWrite (0, 0);
 	ledcAttachPin (TFT_BL, 0);	
@@ -92,8 +95,12 @@ void setup()
 
 	xTaskCreate (fadePWM, "fadeInPWM", 1000, (void*)true, 2, NULL);
 
-	btnOK.setReleasedHandler ([](Button2 & b) {
+	btnOK.setLongClickHandler ([](Button2 & b) {
 		xTaskCreate (shutDown, "shutDown", 3000, NULL, 1, NULL);
+	});
+	
+	btnSelect.setReleasedHandler ([](Button2 & b) {
+		ADC.tare ();
 	});
 	
 	time(&startTime);
@@ -111,6 +118,8 @@ void loop()
 	static bool	firstrun = true;
 	
 	if (firstrun) {
+		delay (100);
+		ADC.getAdcValue (MUX_AINP_AINN_SHORTED);
 		ADC.startConversion (MUX_AIN1_AIN2, true);
 		firstrun = false;
 	}
@@ -119,6 +128,7 @@ void loop()
 	
 	if (ADC.avgIsValid && firstRun) {
 		firstRun = false;
+		delay (50);
 		ADC.tare ();
 	}
 	
@@ -135,10 +145,11 @@ void loop()
 		tft.drawString (text, 180, 100, 7);
 		tft.setTextDatum (BL_DATUM);
 		tft.drawString ("g", 180, 100, 4);
+		
 		tft.setTextDatum (TR_DATUM);
 		tft.setTextColor (TFT_RED, TFT_WHITE);
 		sprintf (text, "  %8i", ADC.getAverage());
-		tft.drawString (text, 100, 100, 2);
+		tft.drawString (text, 112, 100, 2);
 		if (cycleCount == 0) {			
 			ads1220.set_data_rate (DR_90SPS);
 			ads1220.set_operating_mode (OM_TURBO);
@@ -155,8 +166,9 @@ void loop()
 			tft.setTextDatum (TL_DATUM);
 			tft.drawCircle (182, 111, 2, TFT_BLUE);
 			tft.drawString ("C", 186, 106, 2);
-			
-			// Referentiespanning uitlezen			
+/*			
+			// Referentiespanning uitlezen
+			ADC.invalidate (MUX_VREFP_VREFN_DIV_4);
 			value = ADC.getAdcValue (MUX_VREFP_VREFN_DIV_4);
 			Serial.print ("\r\nReferentie: ");
 			Serial.print (value);
@@ -165,6 +177,7 @@ void loop()
 			tft.setTextColor (TFT_GREEN, TFT_WHITE);
 			tft.drawString (text, 112, 114, 2);
 
+			ADC.invalidate (MUX_AVDD_AVSS_DIV_4);
 			value = ADC.getAdcValue (MUX_AVDD_AVSS_DIV_4);
 			Serial.print ("\r\nReferentie: ");
 			Serial.print (value);
@@ -172,7 +185,16 @@ void loop()
 			tft.setTextDatum (TR_DATUM);
 			tft.setTextColor (TFT_GREEN, TFT_WHITE);
 			tft.drawString (text, 52, 114, 2);
-
+*/
+			ADC.invalidate (MUX_AINP_AINN_SHORTED);
+			value = ADC.getAdcValue (MUX_AINP_AINN_SHORTED);
+			Serial.print ("\r\nKortgesloten: ");
+			Serial.print (value);
+			sprintf (text, " %8i", value);
+			tft.setTextDatum (TR_DATUM);
+			tft.setTextColor (TFT_RED, TFT_WHITE);
+			tft.drawString (text, 52, 106, 1);
+			
 			ads1220.set_data_rate (DR_20SPS);
 			ads1220.set_operating_mode (OM_NORMAL);
 			ADC.startConversion (MUX_AIN1_AIN2, true);
@@ -198,5 +220,6 @@ void loop()
 		xTaskCreate (shutDown, "shutDown", 3000, NULL, 1, NULL);		
 	}
 	btnOK.loop ();
+	btnSelect.loop ();
 	//delay (100);	
 }

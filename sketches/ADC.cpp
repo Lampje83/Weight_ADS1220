@@ -41,7 +41,7 @@ void ADCClass::calcAverage () {
 	adc_data -= adc_max + adc_min;
 	
 	// Store the result
-	weightAverage = adc_data / (ADC_BUFFERSIZE - 2);
+	weightAverage = (adc_data - adcValue[MUX_AINP_AINN_SHORTED >> 4]) / (ADC_BUFFERSIZE - 2);
 	avgIsDirty = true;	
 }
 
@@ -50,8 +50,12 @@ void ADCClass::begin (uint8_t cs_pin, uint8_t drdy_pin) {
 	ads1220.begin (cs_pin, drdy_pin);
 	ads1220.set_data_rate (DR_20SPS);
 	ads1220.set_pga_gain (PGA_GAIN_128);
-	ads1220.writeRegister (2, 7 + 8 + 32 + 128); 	// IDAC current at 1500uA, Low-side power switch on, 50Hz filter on, VREF using AIN0/AIN3
+	ads1220.writeRegister (2, 7 + 8 + 16 + 128); 	// IDAC current at 1500uA, Low-side power switch on, 50Hz filter on, VREF using AIN0/AIN3
 	//ads1220.writeRegister (3, 32 + 4);	// Connect IDAC1+IDAC2 to AIN0
+	activeChannel = MUX_AINP_AINN_SHORTED;
+	ads1220.select_mux_channels (activeChannel);
+	ads1220.set_conv_mode_continuous ();
+	ads1220.Start_Conv ();	
 
 	Serial.println ("Config_Reg : ");
 	Serial.println (ads1220.readRegister (CONFIG_REG0_ADDRESS), HEX);
@@ -59,7 +63,6 @@ void ADCClass::begin (uint8_t cs_pin, uint8_t drdy_pin) {
 	Serial.println (ads1220.readRegister (CONFIG_REG2_ADDRESS), HEX);
 	Serial.println (ads1220.readRegister (CONFIG_REG3_ADDRESS), HEX);
 	Serial.println (" ");
-
 }
 
 void ADCClass::loop (void) {
@@ -90,6 +93,7 @@ void ADCClass::invalidate (uint8_t channel) {
 
 void ADCClass::writeBuffer (int32_t value) {
 	weightBuffer[bufferPos] = value;
+	avgIsDirty = true;
 	bufferPos++;
 	if (bufferPos >= ADC_BUFFERSIZE) {
 		bufferPos = 0;
@@ -126,9 +130,15 @@ float ADCClass::getTemperature () {
 	return (adcValue[TEMPERATURE_CHANNEL >> 4] >> 10) * 0.03125;
 }
 void ADCClass::tare () {
-	// TODO: sample more data
-	zerooffset = ZEROVAL - getAverage ();
+	int32_t accum = 0;
+	
+	for (uint8_t count = 0; count < 10; count++) {
+		accum += getAverage ();
+		delay (50);
+	}		
+	zerooffset = ZEROVAL - accum / 10.0f;
 }
+
 void ADCClass::powerDown () {
 	detachInterrupt (drdy_pin);
 	ads1220.SPI_Command (ADS1220_POWERDOWN);
