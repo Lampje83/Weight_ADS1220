@@ -50,7 +50,7 @@ void shutDown (void *param) {
 	
 	ADC.powerDown ();
 		
-	vTaskDelay (20);
+	delay (20);
 	esp_sleep_enable_ext1_wakeup (GPIO_SEL_35, ESP_EXT1_WAKEUP_ALL_LOW);
 	while (fadeComplete == false) {
 		vTaskDelay (10);
@@ -59,6 +59,12 @@ void shutDown (void *param) {
 	tft.writecommand (TFT_DISPOFF);
 	tft.writecommand (TFT_SLPIN);
 	esp_deep_sleep_start ();
+	vTaskDelete (NULL);
+}
+
+void initADC (void *param) {
+	ADC.begin (CS_PIN, DRDY_PIN);
+	
 	vTaskDelete (NULL);
 }
 
@@ -71,18 +77,11 @@ void setup()
 
 	Serial.begin (115200);
 
-	ADC.begin ();//CS_PIN, DRDY_PIN);
-
+	//ADC.begin ();//CS_PIN, DRDY_PIN);
+	xTaskCreate (initADC, "initADC", 3000, NULL, 5, NULL);
 	ledcSetup (0, 4000, 10);
 	ledcWrite (0, 0);
 	ledcAttachPin (TFT_BL, 0);	
-
-	Serial.println ("Config_Reg : ");
-	Serial.println (ads1220.readRegister (CONFIG_REG0_ADDRESS), HEX);
-	Serial.println (ads1220.readRegister (CONFIG_REG1_ADDRESS), HEX);
-	Serial.println (ads1220.readRegister (CONFIG_REG2_ADDRESS), HEX);
-	Serial.println (ads1220.readRegister (CONFIG_REG3_ADDRESS), HEX);
-	Serial.println (" ");
 	
 	tft.init ();
 	tft.setRotation (1);
@@ -109,7 +108,13 @@ void loop()
 	char	text[16];
 	time_t	now;
 	int32_t	value;
-
+	static bool	firstrun = true;
+	
+	if (firstrun) {
+		ADC.startConversion (MUX_AIN1_AIN2, true);
+		firstrun = false;
+	}
+	
 	ADC.writeBuffer (ads1220.Read_WaitForData ());
 	
 	if (ADC.avgIsValid && firstRun) {

@@ -52,7 +52,13 @@ void ADCClass::begin (uint8_t cs_pin, uint8_t drdy_pin) {
 	ads1220.set_pga_gain (PGA_GAIN_128);
 	ads1220.writeRegister (2, 7 + 8 + 32 + 128); 	// IDAC current at 1500uA, Low-side power switch on, 50Hz filter on, VREF using AIN0/AIN3
 	//ads1220.writeRegister (3, 32 + 4);	// Connect IDAC1+IDAC2 to AIN0
-	startConversion (MUX_AIN1_AIN2, true);
+
+	Serial.println ("Config_Reg : ");
+	Serial.println (ads1220.readRegister (CONFIG_REG0_ADDRESS), HEX);
+	Serial.println (ads1220.readRegister (CONFIG_REG1_ADDRESS), HEX);
+	Serial.println (ads1220.readRegister (CONFIG_REG2_ADDRESS), HEX);
+	Serial.println (ads1220.readRegister (CONFIG_REG3_ADDRESS), HEX);
+	Serial.println (" ");
 
 }
 
