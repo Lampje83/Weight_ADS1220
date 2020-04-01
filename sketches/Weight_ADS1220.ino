@@ -119,6 +119,7 @@ bool		valid = false;
 */
 bool		firstRun = true;
 uint8_t		cycleCount = 0;
+bool		oldDRDY;
 
 void loop()
 {
@@ -177,7 +178,7 @@ void loop()
 			ADC.startConversion (TEMPERATURE_CHANNEL, false);
 			//adc_data = ads1220.Read_WaitForData ();
 			//ads1220.set_temp_sens_mode (false);
-			ADC.dataISR ();
+			ADC.waitForDRDY ();
 			Serial.print ("\tTemperatuur: ");
 			//Serial.print ((adc_data >> 10) * 0.03125);
 			Serial.print (ADC.getTemperature ());
@@ -232,6 +233,12 @@ void loop()
 		}
 	}
 	cycleCount = (cycleCount + 1) & 15;
+	if (digitalRead (DRDY_PIN) != oldDRDY) {
+		oldDRDY = !oldDRDY;
+		if (oldDRDY == true) {
+			ADC.handleDRDY ();
+		}
+	}
 	
 	time (&now);
 	if ((now - startTime) > 300) {

@@ -41,15 +41,21 @@ private:
 	uint8_t bufferedChannel = MUX_AIN1_AIN2;		// readings from this channel are stored in buffer
 	uint8_t	activeChannel;  		// actual mux channel being sampled
 	bool	continuousMode;
+	
+	uint8_t	drdy_pin;
+	
 	void	calcAverage ();
 public:
 	bool	avgIsValid = false; 	// buffer completely filled
 
 	ADCClass ();
 	void	begin (uint8_t cs_pin, uint8_t drdy_pin);
+	
+	void	loop ();
 
-	void	dataISR ();
-
+	void	handleDRDY ();
+	void	waitForDRDY ();
+	
 	void	invalidate (uint8_t channel);
 	void	writeBuffer (int32_t buffer);
 	void	writeAdcValue (int32_t value, uint8_t channel);

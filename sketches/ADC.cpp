@@ -12,6 +12,13 @@ ADCClass				ADC;
 
 int32_t					zerooffset = 0;
 
+#define DRDY_PIN 22
+static void IRAM_ATTR dataISR () {
+	detachInterrupt (DRDY_PIN);
+	ADC.handleDRDY ();
+	//attachInterrupt (DRDY_PIN, dataISR, FALLING);
+}
+
 ADCClass::ADCClass () {
 
 }
@@ -39,27 +46,36 @@ void ADCClass::calcAverage () {
 }
 
 void ADCClass::begin (uint8_t cs_pin, uint8_t drdy_pin) {
+	this->drdy_pin = drdy_pin;
 	ads1220.begin (cs_pin, drdy_pin);
 	ads1220.set_data_rate (DR_20SPS);
-	//ads1220.set_operating_mode (OM_DUTY_CYCLE);
 	ads1220.set_pga_gain (PGA_GAIN_128);
-	//ads1220.set_conv_mode_continuous ();
 	ads1220.writeRegister (2, 7 + 8 + 32 + 128); 	// IDAC current at 1500uA, Low-side power switch on, 50Hz filter on, VREF using AIN0/AIN3
 	//ads1220.writeRegister (3, 32 + 4);	// Connect IDAC1+IDAC2 to AIN0
-	//ads1220.select_mux_channels (MUX_AIN1_AIN2);
 	startConversion (MUX_AIN1_AIN2, true);
+
+}
+
+void ADCClass::loop (void) {
+	
 }
 
 // read data into selected buffer
-void IRAM_ATTR ADCClass::dataISR () {
+void ADCClass::handleDRDY () {
 	int32_t	*value = &adcValue[activeChannel >> 4];
 	
 	// store read value
-	*value = ads1220.Read_WaitForData ();
+	*value = ads1220.Read_Data ();
 	adcValid[activeChannel >> 4] = true;
 	if (activeChannel == bufferedChannel) {
 		writeBuffer (*value);
 	}
+}
+
+void ADCClass::waitForDRDY () {
+	detachInterrupt (drdy_pin);
+	while (digitalRead (drdy_pin) == true) yield ();
+	handleDRDY ();
 }
 
 void ADCClass::invalidate (uint8_t channel) {
@@ -91,8 +107,7 @@ bool ADCClass::getAdcValue (uint8_t channel, int32_t *value) {
 int32_t ADCClass::getAdcValue (uint8_t channel) {
 	if (!adcValid[channel >> 4]) {
 		startConversion (channel, continuousMode);
-		delay (2);
-		dataISR ();
+		waitForDRDY ();
 		return adcValue[channel >> 4];
 	}
 }
@@ -109,12 +124,12 @@ void ADCClass::tare () {
 	zerooffset = ZEROVAL - getAverage ();
 }
 void ADCClass::powerDown () {
-	// TODO: stop interrupt handler
+	detachInterrupt (drdy_pin);
 	ads1220.SPI_Command (ADS1220_POWERDOWN);
 }
 
 void ADCClass::startConversion (uint8_t channel = 255, bool continuous = false) {
-	// TODO: stop interrupt handler
+	detachInterrupt (drdy_pin);
 	if (channel != 255 && channel != activeChannel) {
 		if (channel != TEMPERATURE_CHANNEL) {
 			ads1220.select_mux_channels (channel);
@@ -132,6 +147,8 @@ void ADCClass::startConversion (uint8_t channel = 255, bool continuous = false) 
 		continuousMode = continuous;
 	}
 	ads1220.Start_Conv ();
+	attachInterrupt (drdy_pin, dataISR, FALLING);
+
 }
 
 float ADCClass::convertToWeight (int32_t i32data) {
