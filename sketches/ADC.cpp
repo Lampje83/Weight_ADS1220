@@ -41,8 +41,15 @@ void ADCClass::calcAverage () {
 	adc_data -= adc_max + adc_min;
 	
 	// Store the result
+	int32_t oldPrev = prevAverage;
+	prevAverage = weightAverage;
 	weightAverage = (adc_data - adcValue[MUX_AINP_AINN_SHORTED >> 4]) / (ADC_BUFFERSIZE - 2);
-	avgIsDirty = true;	
+	avgIsDirty = false;
+	Serial.printf ("\tChange: %i %i ", abs (weightAverage - prevAverage), abs (weightAverage - oldPrev));
+	if ((abs (weightAverage - prevAverage) > CHANGE_THRESHOLD) &&
+		(abs (weightAverage - oldPrev) > (CHANGE_THRESHOLD * 2))) {
+			significantChange = true;
+	} 
 }
 
 void ADCClass::begin (uint8_t cs_pin, uint8_t drdy_pin) {
@@ -50,7 +57,7 @@ void ADCClass::begin (uint8_t cs_pin, uint8_t drdy_pin) {
 	ads1220.begin (cs_pin, drdy_pin);
 	ads1220.set_data_rate (DR_20SPS);
 	ads1220.set_pga_gain (PGA_GAIN_128);
-	ads1220.writeRegister (2, 7 + 8 + 16 + 128); 	// IDAC current at 1500uA, Low-side power switch on, 50Hz filter on, VREF using AIN0/AIN3
+	ads1220.writeRegister (2, 7 + 8 + 16 + 128); 	// IDAC current at 1500uA, Low-side power switch on, 50Hz+60Hz filter on, VREF using AIN0/AIN3
 	//ads1220.writeRegister (3, 32 + 4);	// Connect IDAC1+IDAC2 to AIN0
 	activeChannel = MUX_AINP_AINN_SHORTED;
 	ads1220.select_mux_channels (activeChannel);
@@ -63,6 +70,16 @@ void ADCClass::begin (uint8_t cs_pin, uint8_t drdy_pin) {
 	Serial.println (ads1220.readRegister (CONFIG_REG2_ADDRESS), HEX);
 	Serial.println (ads1220.readRegister (CONFIG_REG3_ADDRESS), HEX);
 	Serial.println (" ");
+	
+	waitForDRDY ();
+	activeChannel = MUX_AINP_AINN_SHORTED;
+	ads1220.select_mux_channels (activeChannel);
+	delay (100);
+	getAdcValue (MUX_AINP_AINN_SHORTED);
+	
+	startConversion (MUX_AIN1_AIN2, true);
+	delay (500);
+	ADC.tare ();
 }
 
 void ADCClass::loop (void) {
@@ -79,6 +96,7 @@ void ADCClass::handleDRDY () {
 	if (activeChannel == bufferedChannel) {
 		writeBuffer (*value);
 	}
+	newData = true;
 }
 
 void ADCClass::waitForDRDY () {
@@ -103,8 +121,8 @@ void ADCClass::writeBuffer (int32_t value) {
 
 int32_t ADCClass::getAverage () {
 	if (avgIsDirty) {
-		// Bffer was updated, recalculate
-		prevAverage = weightAverage;
+		significantChange = false;
+		// Buffer was updated, recalculate
 		calcAverage ();
 	}
 	return weightAverage;
@@ -132,11 +150,11 @@ float ADCClass::getTemperature () {
 void ADCClass::tare () {
 	int32_t accum = 0;
 	
-	for (uint8_t count = 0; count < 10; count++) {
-		accum += getAverage ();
-		delay (50);
+	for (uint8_t count = 0; count < 4; count++) {
+		delay (100);
+		if (count != 0) accum += getAverage ();	// eerste resultaat weggooien
 	}		
-	zerooffset = ZEROVAL - accum / 10.0f;
+	zerooffset = ZEROVAL - (accum / 3.0f);
 }
 
 void ADCClass::powerDown () {
@@ -164,7 +182,6 @@ void ADCClass::startConversion (uint8_t channel = 255, bool continuous = false) 
 	}
 	ads1220.Start_Conv ();
 	attachInterrupt (drdy_pin, dataISR, FALLING);
-
 }
 
 float ADCClass::convertToWeight (int32_t i32data) {

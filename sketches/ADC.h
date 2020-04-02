@@ -10,7 +10,7 @@
 #define VFSR		VREF / PGA
 #define FULL_SCALE	(((long int)1<<23)-1)
 
-#define ADC_BUFFERSIZE	8
+#define ADC_BUFFERSIZE	12
 
 // reference value
 #define ZEROVAL		150490
@@ -18,8 +18,8 @@
 #define TESTVAL		253140
 #define REFTEMP_T20	20.16
 
-#define ZERO_RANGE	500
-#define NOISE_RANGE	400
+#define ZERO_RANGE			100
+#define CHANGE_THRESHOLD	25
 
 // ADS1220 commands
 #define ADS1220_POWERDOWN		2
@@ -49,6 +49,8 @@ private:
 	
 	void	calcAverage ();
 public:
+	bool	newData;
+	bool	significantChange;
 	bool	avgIsValid = false; 	// buffer completely filled
 
 	ADCClass ();

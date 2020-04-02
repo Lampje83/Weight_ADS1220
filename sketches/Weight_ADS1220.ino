@@ -108,7 +108,7 @@ void setup()
 	tft.setTextFont (1);
 	tft.fillScreen (TFT_WHITE);
 
-	targetBrightness = 511;
+	targetBrightness = 255;
 	xTaskCreate (fadePWM, "fadeInPWM", 1000, (void*)&targetBrightness, 2, NULL);
 
 	btnOK.setLongClickHandler ([](Button2 & b) {
@@ -131,41 +131,31 @@ void loop()
 	char	text[16];
 	time_t	now;
 	int32_t	value;
-	static bool	firstrun = true;
-	
-	if (firstrun) {
-		delay (100);
-		ADC.getAdcValue (MUX_AINP_AINN_SHORTED);
-		ADC.startConversion (MUX_AIN1_AIN2, true);
-		firstrun = false;
-	}
+	static int32_t	shownValue;
 	
 	ADC.writeBuffer (ads1220.Read_WaitForData ());
 	
-	if (ADC.avgIsValid && firstRun) {
-		firstRun = false;
-		delay (50);
-		ADC.tare ();
-	}
-	
 	if (ADC.avgIsValid) {
 		Serial.print ("\r\nAIN1-AIN2: ");
-		Serial.print (ADC.getAverage());
+		Serial.print (ADC.getAverage ());
 		Serial.print ("\tGewicht: ");
-		Serial.print (ADC.getWeight());
-
-		tft.setTextColor (TFT_BLACK, TFT_WHITE);
-		tft.setTextDatum (BR_DATUM);
-		sprintf (text, "%4.2f", ADC.getWeight());
-		tft.fillRect (0, 100 - tft.fontHeight (7), 180 - tft.textWidth(text, 7), tft.fontHeight (7), TFT_WHITE);
-		tft.drawString (text, 180, 100, 7);
-		tft.setTextDatum (BL_DATUM);
-		tft.drawString ("g", 180, 100, 4);
+		Serial.print (ADC.getWeight ());
+		if (ADC.significantChange || (abs(ADC.getAverage() - shownValue) > CHANGE_THRESHOLD)) {
+			tft.setTextColor (TFT_BLACK, TFT_WHITE);
+			tft.setTextDatum (BR_DATUM);
+			sprintf (text, "%4.2f", ADC.getWeight ());
 		
-		tft.setTextDatum (TR_DATUM);
-		tft.setTextColor (TFT_RED, TFT_WHITE);
-		sprintf (text, "  %8i", ADC.getAverage());
-		tft.drawString (text, 112, 100, 2);
+			tft.fillRect (0, 100 - tft.fontHeight (7), 180 - tft.textWidth (text, 7), tft.fontHeight (7), TFT_WHITE);
+			tft.drawString (text, 180, 100, 7);
+			tft.setTextDatum (BL_DATUM);
+			tft.drawString ("g", 180, 100, 4);
+		
+			tft.setTextDatum (TR_DATUM);
+			tft.setTextColor (TFT_RED, TFT_WHITE);
+			sprintf (text, "  %8i", ADC.getAverage ());
+			tft.drawString (text, 112, 100, 2);
+			shownValue = ADC.getAverage ();
+		}
 		if (cycleCount == 0) {			
 			ads1220.set_data_rate (DR_90SPS);
 			ads1220.set_operating_mode (OM_TURBO);
