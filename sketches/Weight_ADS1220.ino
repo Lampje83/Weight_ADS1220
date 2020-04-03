@@ -6,6 +6,7 @@
 #include <Button2.h>
 #include "time.h"
 #include "ADC.h"
+#include "UI.h"
 
 #define	LED_BUILTIN	4
 #define BUZZER		26
@@ -81,7 +82,10 @@ void shutDown (void *param) {
 
 void initADC (void *param) {
 	ADC.begin (CS_PIN, DRDY_PIN);
-	
+	while (1) {
+		ADC.loop ();
+	}
+	// should never get here
 	vTaskDelete (NULL);
 }
 
@@ -117,6 +121,7 @@ void setup()
 	
 	btnSelect.setReleasedHandler ([](Button2 & b) {
 		ADC.tare ();
+		time (&startTime);
 	});
 	
 	time(&startTime);
@@ -132,15 +137,17 @@ void loop()
 	time_t	now;
 	int32_t	value;
 	static int32_t	shownValue;
+	float	temperature;
 	
-	ADC.writeBuffer (ads1220.Read_WaitForData ());
+	//ADC.writeBuffer (ads1220.Read_WaitForData ());
 	
 	if (ADC.avgIsValid) {
-		Serial.print ("\r\nAIN1-AIN2: ");
+/*		Serial.print ("\r\nAIN1-AIN2: ");
 		Serial.print (ADC.getAverage ());
 		Serial.print ("\tGewicht: ");
 		Serial.print (ADC.getWeight ());
-		if (ADC.significantChange || (abs(ADC.getAverage() - shownValue) > CHANGE_THRESHOLD)) {
+*/		if (ADC.significantChange || 
+			(abs (ADC.getAverage () - shownValue) > (CHANGE_THRESHOLD * 1.5))) {
 			tft.setTextColor (TFT_BLACK, TFT_WHITE);
 			tft.setTextDatum (BR_DATUM);
 			sprintf (text, "%4.2f", ADC.getWeight ());
@@ -156,75 +163,42 @@ void loop()
 			tft.drawString (text, 112, 100, 2);
 			shownValue = ADC.getAverage ();
 		}
-		if (cycleCount == 0) {			
-			ads1220.set_data_rate (DR_90SPS);
-			ads1220.set_operating_mode (OM_TURBO);
-			
-			// Temperatuur uitlezen
-			ADC.startConversion (TEMPERATURE_CHANNEL, false);
-			ADC.waitForDRDY ();
+
+		if (ADC.getTemperature (&temperature)) {			
 			Serial.print ("\tTemperatuur: ");
-			Serial.print (ADC.getTemperature ());
+			Serial.print (temperature);
 			tft.setTextColor (TFT_BLUE, TFT_WHITE);
 			tft.setTextDatum (TR_DATUM);
-			sprintf (text, "   %2.1f", ADC.getTemperature());
+			sprintf (text, "   %2.1f", temperature);
 			tft.drawString (text, 180, 106, 4);
 			tft.setTextDatum (TL_DATUM);
 			tft.drawCircle (182, 111, 2, TFT_BLUE);
 			tft.drawString ("C", 186, 106, 2);
-/*			
-			// Referentiespanning uitlezen
-			ADC.invalidate (MUX_VREFP_VREFN_DIV_4);
-			value = ADC.getAdcValue (MUX_VREFP_VREFN_DIV_4);
-			Serial.print ("\r\nReferentie: ");
-			Serial.print (value);
-			sprintf (text, " %2.3fV", ADC.convertToMilliV (value) / 250.0f);
-			tft.setTextDatum (TR_DATUM);
-			tft.setTextColor (TFT_GREEN, TFT_WHITE);
-			tft.drawString (text, 112, 114, 2);
-
-			ADC.invalidate (MUX_AVDD_AVSS_DIV_4);
-			value = ADC.getAdcValue (MUX_AVDD_AVSS_DIV_4);
-			Serial.print ("\r\nReferentie: ");
-			Serial.print (value);
-			sprintf (text, " %2.3fV", ADC.convertToMilliV (value) / 250.0f);
-			tft.setTextDatum (TR_DATUM);
-			tft.setTextColor (TFT_GREEN, TFT_WHITE);
-			tft.drawString (text, 52, 114, 2);
-*/
-			ADC.invalidate (MUX_AINP_AINN_SHORTED);
-			value = ADC.getAdcValue (MUX_AINP_AINN_SHORTED);
+			ADC.invalidate (TEMPERATURE_CHANNEL);
+		}
+		if (ADC.getAdcValue (MUX_AINP_AINN_SHORTED, &value)) {
 			Serial.print ("\r\nKortgesloten: ");
 			Serial.print (value);
 			sprintf (text, " %8i", value);
 			tft.setTextDatum (TR_DATUM);
 			tft.setTextColor (TFT_RED, TFT_WHITE);
 			tft.drawString (text, 52, 106, 1);
-			
-			ads1220.set_data_rate (DR_20SPS);
-			ads1220.set_operating_mode (OM_NORMAL);
-			ADC.startConversion (MUX_AIN1_AIN2, true);
-			
-			tm	timeInfo;
-			getLocalTime (&timeInfo, 0);
-			strftime (text, sizeof (text), "%H:%M:%S", &timeInfo);
-			tft.setTextDatum (TL_DATUM);
-			tft.setTextColor (TFT_BLACK, TFT_WHITE);
-			tft.drawString (text, 0, 0, 2);
-		}
-	}
-	cycleCount = (cycleCount + 1) & 15;
-	if (digitalRead (DRDY_PIN) != oldDRDY) {
-		oldDRDY = !oldDRDY;
-		if (oldDRDY == false) {
-			ADC.handleDRDY ();
-		}
+			ADC.invalidate (MUX_AINP_AINN_SHORTED);
+			}
+		tm	timeInfo;
+		getLocalTime (&timeInfo, 0);
+		strftime (text, sizeof (text), "%H:%M:%S", &timeInfo);
+		tft.setTextDatum (TL_DATUM);
+		tft.setTextColor (TFT_BLACK, TFT_WHITE);
+		tft.drawString (text, 0, 0, 2);
 	}
 	
 	time (&now);
 	if ((now - startTime) > 300) {
 		xTaskCreate (shutDown, "shutDown", 3000, NULL, 1, NULL);		
 	}
+	
+	delay (40); // give the processor some piece
 	btnOK.loop ();
 	btnSelect.loop ();
 	//delay (100);	

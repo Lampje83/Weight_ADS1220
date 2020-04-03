@@ -14,8 +14,11 @@ int32_t					zerooffset = 0;
 
 #define DRDY_PIN 22
 static void IRAM_ATTR dataISR () {
-	detachInterrupt (DRDY_PIN);
+	//detachInterrupt (DRDY_PIN);
+	Serial.print ("(DRDY)");
 	ADC.handleDRDY ();
+	delay (1);
+	
 	//attachInterrupt (DRDY_PIN, dataISR, FALLING);
 }
 
@@ -72,18 +75,48 @@ void ADCClass::begin (uint8_t cs_pin, uint8_t drdy_pin) {
 	Serial.println (" ");
 	
 	waitForDRDY ();
-	activeChannel = MUX_AINP_AINN_SHORTED;
-	ads1220.select_mux_channels (activeChannel);
-	delay (100);
 	getAdcValue (MUX_AINP_AINN_SHORTED);
+	delay (100);
 	
 	startConversion (MUX_AIN1_AIN2, true);
-	delay (500);
+	//delay (500);
+	while (!avgIsValid) delay (10);
 	ADC.tare ();
 }
 
 void ADCClass::loop (void) {
+	static uint8_t	cycleCount = 0;
+	static bool		oldDRDY;
 	
+	writeBuffer (ads1220.Read_WaitForData ());
+
+	if (cycleCount == 0) {
+		Serial.println ("Overige waardes inlezen");
+		ads1220.set_data_rate (DR_90SPS);
+		ads1220.set_operating_mode (OM_TURBO);
+			
+		// Temperatuur uitlezen
+		startConversion (TEMPERATURE_CHANNEL, false);
+		waitForDRDY ();
+		
+		// Offset ADC uitlezen
+		startConversion (MUX_AINP_AINN_SHORTED, false);
+		waitForDRDY ();
+		
+		// Normale omzetting hervatten
+		ads1220.set_data_rate (DR_20SPS);
+		ads1220.set_operating_mode (OM_NORMAL);
+		startConversion (MUX_AIN1_AIN2, true);
+	}
+	cycleCount = (cycleCount + 1) & 15;
+	if (digitalRead (DRDY_PIN) != oldDRDY) {
+		oldDRDY = !oldDRDY;
+		if (oldDRDY == false) {
+			handleDRDY ();
+		}
+	}
+	
+	delay (10);	// give the processor some piece
 }
 
 // read data into selected buffer
@@ -92,7 +125,7 @@ void ADCClass::handleDRDY () {
 	
 	// store read value
 	*value = ads1220.Read_Data ();
-	adcValid[activeChannel >> 4] = true;
+	adcModified[activeChannel >> 4] = true;
 	if (activeChannel == bufferedChannel) {
 		writeBuffer (*value);
 	}
@@ -106,7 +139,7 @@ void ADCClass::waitForDRDY () {
 }
 
 void ADCClass::invalidate (uint8_t channel) {
-	adcValid[channel >> 4] = false;
+	adcModified[channel >> 4] = false;
 }
 
 void ADCClass::writeBuffer (int32_t value) {
@@ -130,14 +163,14 @@ int32_t ADCClass::getAverage () {
 
 bool ADCClass::getAdcValue (uint8_t channel, int32_t *value) {
 	*value = adcValue[channel >> 4];
-	return adcValid[channel >> 4];
+	return adcModified[channel >> 4];
 }
 int32_t ADCClass::getAdcValue (uint8_t channel) {
-	if (!adcValid[channel >> 4]) {
+	if (!adcModified[channel >> 4]) {
 		startConversion (channel, continuousMode);
 		waitForDRDY ();
-		return adcValue[channel >> 4];
 	}
+	return adcValue[channel >> 4];
 }
 
 float ADCClass::getWeight () {
@@ -147,6 +180,12 @@ float ADCClass::getWeight () {
 float ADCClass::getTemperature () {
 	return (adcValue[TEMPERATURE_CHANNEL >> 4] >> 10) * 0.03125;
 }
+
+bool ADCClass::getTemperature (float *temp) {
+	*temp = getTemperature ();
+	return adcModified[TEMPERATURE_CHANNEL >> 4];	
+}
+
 void ADCClass::tare () {
 	int32_t accum = 0;
 	

@@ -40,7 +40,7 @@ private:
 									// TRUE when weightBuffer is updated
 	// HACK: using buffer for reserved channel 15 to store temperature
 	int32_t adcValue[16]; 			// reference values and temperature
-	bool	adcValid[16];			// false if not read yet
+	bool	adcModified[16];		// false if not read yet
 	uint8_t bufferedChannel = MUX_AIN1_AIN2;		// readings from this channel are stored in buffer
 	uint8_t	activeChannel;  		// actual mux channel being sampled
 	bool	continuousMode;
@@ -69,6 +69,7 @@ public:
 	int32_t getAdcValue (uint8_t channel);
 	float	getWeight ();
 	float	getTemperature ();
+	bool	getTemperature (float *temp);
 	
 	void	tare ();
 	void	powerDown ();

@@ -20,6 +20,7 @@
       </RootSketchFolder>
       <OtherFiles>
         <string>sketches\ADC.h</string>
+        <string>sketches\UI.h</string>
       </OtherFiles>
     </ProjectModeSettings>
   </Project>
