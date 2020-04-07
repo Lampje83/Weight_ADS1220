@@ -98,8 +98,6 @@
         </AdditionalGDBSettings>
         <DebugMethod>
           <ID>gdbstub</ID>
-          <InterfaceID>com.sysprogs.espxx.bootloader</InterfaceID>
-          <InterfaceSerialNumber>01D14E15</InterfaceSerialNumber>
           <Configuration xsi:type="com.visualgdb.edp.espxx.settings.gdbstub.esp32">
             <COMPort>COM13</COMPort>
             <StubBaudRate>74880</StubBaudRate>
@@ -117,7 +115,7 @@
           </Configuration>
         </DebugMethod>
         <AutoDetectRTOS>true</AutoDetectRTOS>
-        <SemihostingSupport>Auto</SemihostingSupport>
+        <SemihostingSupport>Enabled</SemihostingSupport>
         <SemihostingPollingDelay>0</SemihostingPollingDelay>
         <StepIntoEntryPoint>false</StepIntoEntryPoint>
         <ReloadFirmwareOnReset>false</ReloadFirmwareOnReset>

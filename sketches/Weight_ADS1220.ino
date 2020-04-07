@@ -1,7 +1,7 @@
 #define BOARD_ADS1220
 #include <SPI.h>
 #include <SPIFFS.h>
-#include <TFT_eSPI.h>
+//#include <TFT_eSPI.h>
 #include <HardwareSerial.h>
 #include <Button2.h>
 #include "time.h"
@@ -48,7 +48,8 @@ void fadePWM (void *param) {
 		Serial.print ("Brightness naar ");
 		if (dir == 0) {
 			if (brightness < target) brightness = target;
-		} else {
+		}
+		else {
 			if (brightness > target) brightness = target;
 		}
 		Serial.println (brightness);
@@ -89,9 +90,9 @@ void initADC (void *param) {
 	vTaskDelete (NULL);
 }
 
-void setup()
+void setup ()
 {
-	pinMode(LED_BUILTIN, OUTPUT);
+	pinMode (LED_BUILTIN, OUTPUT);
 
 	digitalWrite (TFT_BL, 0);
 	pinMode (TFT_BL, OUTPUT);
@@ -124,14 +125,12 @@ void setup()
 		time (&startTime);
 	});
 	
-	time(&startTime);
+	time (&startTime);
 }
 
-bool		firstRun = true;
-uint8_t		cycleCount = 0;
 bool		oldDRDY;
 
-void loop()
+void loop ()
 {
 	char	text[16];
 	time_t	now;
@@ -139,58 +138,29 @@ void loop()
 	static int32_t	shownValue;
 	float	temperature;
 	
-	//ADC.writeBuffer (ads1220.Read_WaitForData ());
-	
 	if (ADC.avgIsValid) {
-/*		Serial.print ("\r\nAIN1-AIN2: ");
-		Serial.print (ADC.getAverage ());
-		Serial.print ("\tGewicht: ");
-		Serial.print (ADC.getWeight ());
-*/		if (ADC.significantChange || 
-			(abs (ADC.getAverage () - shownValue) > (CHANGE_THRESHOLD * 1.5))) {
-			tft.setTextColor (TFT_BLACK, TFT_WHITE);
-			tft.setTextDatum (BR_DATUM);
-			sprintf (text, "%4.2f", ADC.getWeight ());
-		
-			tft.fillRect (0, 100 - tft.fontHeight (7), 180 - tft.textWidth (text, 7), tft.fontHeight (7), TFT_WHITE);
-			tft.drawString (text, 180, 100, 7);
-			tft.setTextDatum (BL_DATUM);
-			tft.drawString ("g", 180, 100, 4);
-		
-			tft.setTextDatum (TR_DATUM);
-			tft.setTextColor (TFT_RED, TFT_WHITE);
-			sprintf (text, "  %8i", ADC.getAverage ());
-			tft.drawString (text, 112, 100, 2);
+		if (ADC.significantChange || (abs (ADC.getAverage () - shownValue) > (CHANGE_THRESHOLD * 1.5))) {
+			sprintf (txtWeight, "%4.2f", ADC.getWeight ());
+			
 			shownValue = ADC.getAverage ();
+			sprintf (txtCode, "%8i", shownValue);
 		}
-
+		UI::drawScreen (UI_MainScreen);
 		if (ADC.getTemperature (&temperature)) {			
 			Serial.print ("\tTemperatuur: ");
 			Serial.print (temperature);
-			tft.setTextColor (TFT_BLUE, TFT_WHITE);
-			tft.setTextDatum (TR_DATUM);
-			sprintf (text, "   %2.1f", temperature);
-			tft.drawString (text, 180, 106, 4);
-			tft.setTextDatum (TL_DATUM);
-			tft.drawCircle (182, 111, 2, TFT_BLUE);
-			tft.drawString ("C", 186, 106, 2);
+			sprintf (txtSensorTemp, "%2.1f", temperature);
 			ADC.invalidate (TEMPERATURE_CHANNEL);
 		}
 		if (ADC.getAdcValue (MUX_AINP_AINN_SHORTED, &value)) {
 			Serial.print ("\r\nKortgesloten: ");
 			Serial.print (value);
-			sprintf (text, " %8i", value);
-			tft.setTextDatum (TR_DATUM);
-			tft.setTextColor (TFT_RED, TFT_WHITE);
-			tft.drawString (text, 52, 106, 1);
+			sprintf (txtShortedCode, " %8i", value);
 			ADC.invalidate (MUX_AINP_AINN_SHORTED);
-			}
+		}
 		tm	timeInfo;
 		getLocalTime (&timeInfo, 0);
-		strftime (text, sizeof (text), "%H:%M:%S", &timeInfo);
-		tft.setTextDatum (TL_DATUM);
-		tft.setTextColor (TFT_BLACK, TFT_WHITE);
-		tft.drawString (text, 0, 0, 2);
+		strftime (txtTime, sizeof (txtTime), "%H:%M:%S", &timeInfo);
 	}
 	
 	time (&now);
@@ -198,8 +168,7 @@ void loop()
 		xTaskCreate (shutDown, "shutDown", 3000, NULL, 1, NULL);		
 	}
 	
-	delay (40); // give the processor some piece
+	delay (40);  // give the processor some piece
 	btnOK.loop ();
 	btnSelect.loop ();
-	//delay (100);	
 }

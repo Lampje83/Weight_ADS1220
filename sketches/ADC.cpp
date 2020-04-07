@@ -85,11 +85,11 @@ void ADCClass::begin (uint8_t cs_pin, uint8_t drdy_pin) {
 }
 
 void ADCClass::loop (void) {
-	static uint8_t	cycleCount = 0;
+	static uint8_t	cycleCount;
 	static bool		oldDRDY;
 	
 	writeBuffer (ads1220.Read_WaitForData ());
-
+	Serial.print (".");
 	if (cycleCount == 0) {
 		Serial.println ("Overige waardes inlezen");
 		ads1220.set_data_rate (DR_90SPS);
@@ -115,7 +115,7 @@ void ADCClass::loop (void) {
 			handleDRDY ();
 		}
 	}
-	
+	Serial.printf ("Cyclus: %i ", cycleCount);
 	delay (10);	// give the processor some piece
 }
 
