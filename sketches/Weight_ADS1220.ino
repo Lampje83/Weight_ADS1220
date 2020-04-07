@@ -99,7 +99,6 @@ void setup ()
 
 	Serial.begin (115200);
 
-	//ADC.begin ();//CS_PIN, DRDY_PIN);
 	xTaskCreate (initADC, "initADC", 3000, NULL, 5, NULL);
 
 	ledcSetup (0, 4000, 10);
@@ -107,9 +106,7 @@ void setup ()
 	ledcAttachPin (TFT_BL, 0);	
 	
 	tft.init ();
-	tft.setRotation (1);
-	tft.setCursor (0, 0);
-	tft.fillScreen (TFT_BLACK);
+	tft.setRotation (3);
 	tft.setTextFont (1);
 	tft.fillScreen (TFT_WHITE);
 
@@ -132,20 +129,25 @@ bool		oldDRDY;
 
 void loop ()
 {
-	char	text[16];
-	time_t	now;
-	int32_t	value;
+	char			text[16];
+	time_t			now;
+	int32_t			value;
 	static int32_t	shownValue;
-	float	temperature;
+	static int32_t	oldCode;
+	float			temperature;
 	
 	if (ADC.avgIsValid) {
-		if (ADC.significantChange || (abs (ADC.getAverage () - shownValue) > (CHANGE_THRESHOLD * 1.5))) {
+		if (ADC.significantChange || 
+			(((int)(ADC.getAverage () * 100) != shownValue) && 
+			(abs (ADC.getAverage () - oldCode) > 100))) {
 			sprintf (txtWeight, "%4.2f", ADC.getWeight ());
 			
-			shownValue = ADC.getAverage ();
+			shownValue = ADC.getWeight () * 100;
+			oldCode = ADC.getAverage ();
 			sprintf (txtCode, "%8i", shownValue);
+		} else if ((int)(ADC.getAverage () * 100) == shownValue) {
+			oldCode = ADC.getAverage () * 100;
 		}
-		UI::drawScreen (UI_MainScreen);
 		if (ADC.getTemperature (&temperature)) {			
 			Serial.print ("\tTemperatuur: ");
 			Serial.print (temperature);
@@ -161,6 +163,8 @@ void loop ()
 		tm	timeInfo;
 		getLocalTime (&timeInfo, 0);
 		strftime (txtTime, sizeof (txtTime), "%H:%M:%S", &timeInfo);
+		
+		UI::drawScreen (UI_MainScreen);
 	}
 	
 	time (&now);
