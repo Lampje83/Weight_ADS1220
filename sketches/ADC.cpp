@@ -220,7 +220,7 @@ void ADCClass::startConversion (uint8_t channel = 255, bool continuous = false) 
 		continuousMode = continuous;
 	}
 	ads1220.Start_Conv ();
-	attachInterrupt (drdy_pin, dataISR, FALLING);
+	//attachInterrupt (drdy_pin, dataISR, FALLING);
 }
 
 float ADCClass::convertToWeight (int32_t i32data) {
